@@ -22,22 +22,22 @@ async fn main() {
       "create_account" => key_pair::generate_keys(),
       "send" => {
          if args.len() < 5 {
-            println!("USE: send <from_private_key> <to_public_key_hashed> <amount>");
+            println!("USE: send <from_private_key> <to_address> <amount>");
             return;
          }
 
          let send_args: Vec<&String> = args[2..].into_iter().collect();
          let from_private_key = &send_args[0];
-         let to_public_key_hashed = &send_args[1];
+         let to_address = &send_args[1];
          let amount = &send_args[2];
 
          println!("From: {}", from_private_key);
-         println!("To: {}", to_public_key_hashed);
+         println!("To: {}", to_address);
          println!("Amount: {}", amount);
       }
       "coinbase" => {
          if args.len() < 4 {
-            println!("USE: coinbase <to_public_key_hashed> <amount>");
+            println!("USE: coinbase <to_address> <amount>");
             return;
          }
 
@@ -45,22 +45,22 @@ async fn main() {
          println!("{:?}", transaction);
 
          let send_args: Vec<&String> = args[2..].into_iter().collect();
-         let to_public_key_hashed = &send_args[0];
+         let to_address = &send_args[0];
          let amount = &send_args[1];
 
          println!(
             "Coinbase created for {} with {} coins",
-            to_public_key_hashed, amount
+            to_address, amount
          );
       }
       "balance" => {
          if args.len() < 3 {
-            println!("USE: balance <public_key_hashed>");
+            println!("USE: balance <address>");
             return;
          }
 
-         let to_public_key_hashed = &args[2];
-         println!("balance of {} is: {}", to_public_key_hashed, "None");
+         let address = &args[2];
+         println!("balance of {} is: {}", address, "None");
       }
       _ => println!("Sin resultado"),
    };
