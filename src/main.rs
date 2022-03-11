@@ -5,8 +5,6 @@ mod transactions;
 use neo4rs::Graph;
 use std::env;
 
-use crate::transactions::Transaction;
-
 #[tokio::main]
 async fn main() {
    let args: Vec<String> = env::args().collect();
@@ -41,17 +39,11 @@ async fn main() {
             return;
          }
 
-         let transaction = Transaction::new();
-         println!("{:?}", transaction);
-
          let send_args: Vec<&String> = args[2..].into_iter().collect();
-         let to_address = &send_args[0];
-         let amount = &send_args[1];
+         let to_address = send_args[0];
+         let amount = send_args[1];
 
-         println!(
-            "Coinbase created for {} with {} coins",
-            to_address, amount
-         );
+         transactions::create_coinbase(to_address.clone(), amount.clone(), connect_db().await);
       }
       "balance" => {
          if args.len() < 3 {
@@ -66,7 +58,7 @@ async fn main() {
    };
 }
 
-async fn _connect_db() -> Graph {
+async fn connect_db() -> Graph {
    let uri = "127.0.0.1:7687";
    let user = "neo4j";
    let pass = "1234";
