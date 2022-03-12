@@ -6,6 +6,31 @@ use serde::Serialize;
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
+pub struct User {
+   address: String,
+}
+
+impl User {
+   pub fn new(address: String) -> Self {
+      User { address }
+   }
+
+   pub async fn get_unspend_outups(&self, graph: Graph) -> Vec<Input> {
+      let response = graph
+         .execute(query(
+            r#"
+         MATCH (: User {address: $address})-[:OWN]->(o:Output)
+         WHERE NOT ((o)-[:IN]->(:Transaction))
+         RETURN o
+      "#,
+         ))
+         .await
+         .unwrap();
+
+      vec![]
+   }
+}
+
 #[derive(Debug, Serialize, Clone)]
 pub struct Output {
    id: u32,
@@ -22,6 +47,20 @@ pub struct Input {
    address: String,
    public_key: String,
    signature: String,
+}
+
+impl Input {
+   pub fn new(prev_tx: String, output: Output) -> Self {
+      Input {
+         prev_tx,
+         id: output.id,
+         value: output.value,
+         address: output.address,
+
+         public_key: String::new(),
+         signature: String::new(),
+      }
+   }
 }
 
 #[derive(Debug, Serialize, Clone)]
