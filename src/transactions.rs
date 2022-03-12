@@ -6,14 +6,14 @@ use serde::Serialize;
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Clone)]
 pub struct Output {
    id: u32,
    value: f64,
    address: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Clone)]
 pub struct Input {
    prev_tx: String,
    id: u32,
@@ -24,7 +24,7 @@ pub struct Input {
    signature: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Clone)]
 pub struct Transaction {
    hash: String,
    uuid: String,
@@ -79,42 +79,44 @@ impl Transaction {
       self.vout.push(output);
    }
 
-   pub fn upload(&self, _graph: Graph) {
+   pub async fn upload(&mut self, graph: Graph) {
+      self.generate_hash();
+
       let mut queries = Vec::new();
+
       // Create transaction
-      queries.push(
-         query("CREATE (tx:Transaction {hash: $hash, uuid: $uuid, date: $date, vin_hash: $vin_hash, vout_hash: $vout_hash})")
-         .param("hash", &*self.hash)
-         .param("uuid", &*self.uuid)
-         .param("date", self.date)
-         .param("vin_hash", &*self.vin_hash)
-         .param("vout_hash", &*self.vout_hash)
-      );
+      queries.push(format!(
+         "CREATE (tx:Transaction {{ hash: '{}', uuid: '{}', date: {}, vin_hash: '{}', vout_hash: '{}' }})",
+         &*self.hash, &*self.uuid, self.date, &*self.vin_hash, &*self.vout_hash,
+      ));
 
-      // Error here
-      for (index, vout) in self.vout.into_iter().enumerate() {
-         queries.push(
-            query("MERGE (u:User {address: $address})").param("address", vout.address.clone()),
-         );
+      for (index, vout) in self.vout.clone().into_iter().enumerate() {
+         let user = "uo".to_owned() + &index.to_string();
 
-         queries.push(
-            query(
-               "CREATE (tx)-[:OUT]->(o:Output {id: $id, value: $value, address: $address})<-[:OWN]",
-            )
-            .param("id", vout.id.to_string())
-            .param("value", vout.value.to_string())
-            .param("address", &*vout.address),
-         );
+         queries.push(format!(
+            "MERGE ({}:User {{address: '{}'}})",
+            user,
+            vout.address.clone()
+         ));
+
+         queries.push(format!(
+            "CREATE (tx)-[:OUT]->(:Output {{id: {}, value: {}, address: '{}'}})<-[:OWN]-({})",
+            vout.id, vout.value, vout.address, user
+         ));
       }
+
+      let q = queries.join("\n");
+      println!("{}", q.as_str());
+
+      graph.run(query(q.as_str())).await.unwrap();
    }
 }
 
-pub fn create_coinbase(to_address: String, amount: String, graph: Graph) {
+pub async fn create_coinbase(to_address: String, amount: String, graph: Graph) {
    let mut transaction = Transaction::new();
 
    transaction.add_output(amount.parse::<f64>().unwrap(), to_address);
+   transaction.upload(graph).await;
 
-   transaction.generate_hash();
-   transaction.upload(graph);
-   println!("{:?}", transaction)
+   //println!("{:?}", transaction);
 }

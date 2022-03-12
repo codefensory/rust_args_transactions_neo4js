@@ -43,7 +43,8 @@ async fn main() {
          let to_address = send_args[0];
          let amount = send_args[1];
 
-         transactions::create_coinbase(to_address.clone(), amount.clone(), connect_db().await);
+         transactions::create_coinbase(to_address.clone(), amount.clone(), connect_db().await)
+            .await;
       }
       "balance" => {
          if args.len() < 3 {
