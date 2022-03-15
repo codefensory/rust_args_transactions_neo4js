@@ -1,5 +1,5 @@
 mod key_pair;
-mod signatures;
+mod utils;
 mod actions;
 mod transactions;
 mod users;

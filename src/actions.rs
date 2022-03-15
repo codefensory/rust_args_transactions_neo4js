@@ -1,6 +1,6 @@
 use neo4rs::Graph;
 
-use crate::signatures::get_address_by_private_key;
+use crate::utils::get_address_by_private_key;
 use crate::transactions::Transaction;
 use crate::users::User;
 
