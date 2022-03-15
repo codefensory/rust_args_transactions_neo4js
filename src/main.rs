@@ -1,6 +1,8 @@
 mod key_pair;
 mod signatures;
+mod actions;
 mod transactions;
+mod users;
 
 use neo4rs::Graph;
 use std::env;
@@ -29,11 +31,7 @@ async fn main() {
          let to_address = &send_args[1];
          let amount = &send_args[2];
 
-         println!("From: {}", from_private_key);
-         println!("To: {}", to_address);
-         println!("Amount: {}", amount);
-
-         transactions::send_transaction(
+         actions::send_transaction(
             from_private_key.to_string(),
             to_address.to_string(),
             amount.to_string(),
@@ -51,7 +49,7 @@ async fn main() {
          let to_address = send_args[0];
          let amount = send_args[1];
 
-         transactions::create_coinbase(to_address.clone(), amount.clone(), connect_db().await)
+         actions::create_coinbase(to_address.clone(), amount.clone(), connect_db().await)
             .await;
       }
       "balance" => {

@@ -1,102 +1,15 @@
 use base58::ToBase58;
 use chrono::Utc;
-use neo4rs::{query, Graph, Node};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
-use crate::signatures::get_address_by_private_key;
-
-pub struct User {
-   address: String,
-}
-
-impl User {
-   pub fn new(address: String) -> Self {
-      User { address }
-   }
-
-   pub async fn get_unspend_outups(&self, graph: Graph) -> Vec<(Transaction, u32)> {
-      let mut response = graph
-         .execute(
-            query(
-               r#"
-         MATCH (:User {address: $address})-[:OWN]->(o:Output)<-[:OUT]-(tx:Transaction)
-         WHERE isEmpty((o)-[:IN]->(:Transaction))
-         WITH o.id as oid, tx
-         WITH oid, tx, [(tx)-[:OUT]->(o:Output) | o] as t_outputs
-         WITH oid, tx, t_outputs, [(tx)-[:IN]->(i:Output) | i] as t_inputs
-         RETURN oid, tx, t_outputs, t_inputs
-         "#,
-            )
-            .param("address", &*self.address),
-         )
-         .await
-         .unwrap();
-
-      let mut outputs: Vec<(Transaction, u32)> = Vec::new();
-
-      while let Ok(Some(row)) = response.next().await {
-         //let out_id = row.get("out_id").unwrap();
-         let output: Vec<Node> = row.get("t_outputs").unwrap();
-         println!("{:?}", output);
-         //outputs.push((prev_tx, output));
-      }
-
-      outputs
-   }
-}
-
-#[derive(Debug, Serialize, Clone)]
-pub struct Output {
-   id: u32,
-   value: f64,
-   address: String,
-}
-
-impl Output {
-   pub fn from_node(node: Node) -> Self {
-      Output {
-         id: node.get::<i64>("id").unwrap() as u32,
-         value: node.get::<String>("value").unwrap().parse::<f64>().unwrap(),
-         address: node.get("address").unwrap(),
-      }
-   }
-}
-
-#[derive(Debug, Serialize, Clone)]
-pub struct Input {
-   prev_tx: String,
-   id: u32,
-   value: f64,
-
-   address: String,
-   public_key: String,
-   signature: String,
-}
-
-impl Input {
-   pub fn new(prev_tx: String, output: Output) -> Self {
-      Input {
-         prev_tx,
-         id: output.id,
-         value: output.value,
-         address: output.address,
-
-         public_key: String::new(),
-         signature: String::new(),
-      }
-   }
-
-   pub fn verify(&self) -> bool {
-      false
-   }
-}
+use neo4rs::{query, Graph, Node};
 
 #[derive(Debug, Serialize, Clone)]
 pub struct Transaction {
    #[serde(skip_serializing)]
-   hash: String,
+   pub hash: String,
 
    uuid: String,
    date: i64,
@@ -108,7 +21,6 @@ pub struct Transaction {
    #[serde(skip_serializing)]
    _vin: Vec<Input>,
 }
-
 impl Transaction {
    pub fn new() -> Self {
       Transaction {
@@ -122,21 +34,26 @@ impl Transaction {
       }
    }
 
-   pub fn from_node(node: Node) -> Self {
+   pub fn from_node(node: &Node, outputs: Vec<Node>, inputs: Vec<Node>) -> Self {
       Transaction {
-         hash: String::new(),
-         uuid: node.get("uuid").unwrap(),
-         date: node.get("date").unwrap(),
-         vin_hash: node.get("vin_hash").unwrap(),
-         vout_hash: node.get("vout_hash").unwrap(),
-         vout: Vec::new(),
-         _vin: Vec::new(),
+         hash: node.get("hash").unwrap_or(String::new()),
+         uuid: node.get("uuid").unwrap_or(String::new()),
+         date: node.get("date").unwrap_or(0),
+         vin_hash: node.get("vin_hash").unwrap_or(String::new()),
+         vout_hash: node.get("vout_hash").unwrap_or(String::new()),
+         vout: outputs.iter().map(Output::from_node).collect(),
+         _vin: inputs.iter().map(Input::from_node).collect(),
       }
+   }
+
+   pub fn validate(&mut self) -> bool {
+      let prev_hash = self.hash.clone();
+      self.generate_hash();
+      prev_hash == self.hash
    }
 
    pub fn generate_hash(&mut self) {
       let json = serde_json::to_string(&self.vout).unwrap();
-
       let mut vout_hasher = Sha256::new();
       vout_hasher.update(&json);
       self.vout_hash = hex::encode(vout_hasher.finalize());
@@ -146,8 +63,8 @@ impl Transaction {
       vin_hasher.update(&json);
       self.vin_hash = hex::encode(vin_hasher.finalize());
 
-      let mut self_hasher = Sha256::new();
       let json = serde_json::to_string(&self).unwrap();
+      let mut self_hasher = Sha256::new();
       self_hasher.update(&json);
       self.hash = hex::encode(self_hasher.finalize());
    }
@@ -198,23 +115,67 @@ impl Transaction {
    }
 }
 
-pub async fn create_coinbase(to_address: String, amount: String, graph: Graph) {
-   let mut transaction = Transaction::new();
+// INPUTS AND OUTPUTS
 
-   transaction.add_output(amount.parse::<f64>().unwrap(), to_address);
-   transaction.upload(graph).await;
+//------
+// Outputs
+//------
+#[derive(Debug, Serialize, Clone)]
+pub struct Output {
+   id: u32,
+   value: f64,
+   address: String,
 }
 
-pub async fn send_transaction(
-   private_key: String,
-   to_address: String,
-   amount: String,
-   graph: Graph,
-) {
-   let private_key = hex::decode(private_key).unwrap();
-   let from_address = get_address_by_private_key(&private_key);
+impl Output {
+   pub fn from_node(node: &Node) -> Self {
+      Output {
+         id: node.get::<i64>("id").unwrap() as u32,
+         value: node.get::<f64>("value").unwrap(),
+         address: node.get("address").unwrap(),
+      }
+   }
+}
 
-   let user = User::new(from_address);
-   let inputs = user.get_unspend_outups(graph).await;
-   println!("{:?}", inputs);
+//------
+// Inputs
+//------
+#[derive(Debug, Serialize, Clone)]
+pub struct Input {
+   prev_tx: String,
+   id: u32,
+   value: f64,
+
+   address: String,
+   public_key: String,
+   signature: String,
+}
+
+impl Input {
+   pub fn new(prev_tx: String, output: Output) -> Self {
+      Input {
+         prev_tx,
+         id: output.id,
+         value: output.value,
+         address: output.address,
+
+         public_key: String::new(),
+         signature: String::new(),
+      }
+   }
+
+   pub fn from_node(node: &Node) -> Self {
+      Input {
+         prev_tx: node.get("prev_tx").unwrap_or(String::new()),
+         id: node.get::<i64>("id").unwrap_or(0) as u32,
+         value: node.get("value").unwrap_or(0.0),
+         address: node.get("address").unwrap_or(String::new()),
+         public_key: node.get("public_key").unwrap_or(String::new()),
+         signature: node.get("signature").unwrap_or(String::new()),
+      }
+   }
+
+   pub fn verify(&self) -> bool {
+      false
+   }
 }
