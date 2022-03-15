@@ -1,5 +1,5 @@
 mod key_pair;
-// mod signatures;
+mod signatures;
 mod transactions;
 
 use neo4rs::Graph;
@@ -32,6 +32,14 @@ async fn main() {
          println!("From: {}", from_private_key);
          println!("To: {}", to_address);
          println!("Amount: {}", amount);
+
+         transactions::send_transaction(
+            from_private_key.to_string(),
+            to_address.to_string(),
+            amount.to_string(),
+            connect_db().await,
+         )
+         .await;
       }
       "coinbase" => {
          if args.len() < 4 {

@@ -1,10 +1,12 @@
 use base58::ToBase58;
 use chrono::Utc;
 use neo4rs::query;
-use neo4rs::Graph;
+use neo4rs::{Graph, Node};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
+
+use crate::signatures::get_address_by_private_key;
 
 pub struct User {
    address: String,
@@ -15,19 +17,34 @@ impl User {
       User { address }
    }
 
-   pub async fn get_unspend_outups(&self, graph: Graph) -> Vec<Input> {
-      let response = graph
-         .execute(query(
-            r#"
-         MATCH (: User {address: $address})-[:OWN]->(o:Output)
-         WHERE NOT ((o)-[:IN]->(:Transaction))
-         RETURN o
-      "#,
-         ))
+   pub async fn get_unspend_outups(&self, graph: Graph) -> Vec<(Transaction, u32)> {
+      let mut response = graph
+         .execute(
+            query(
+               r#"
+         MATCH (:User {address: $address})-[:OWN]->(o:Output)<-[:OUT]-(tx:Transaction)
+         WHERE isEmpty((o)-[:IN]->(:Transaction))
+         WITH o.id as oid, tx
+         WITH oid, tx, [(tx)-[:OUT]->(o:Output) | o] as t_outputs
+         WITH oid, tx, t_outputs, [(tx)-[:IN]->(i:Input) | i] as t_inputs
+         RETURN oid, tx, t_outputs, t_inputs
+         "#,
+            )
+            .param("address", &*self.address),
+         )
          .await
          .unwrap();
 
-      vec![]
+      let mut outputs: Vec<(Transaction, u32)> = Vec::new();
+
+      while let Ok(Some(row)) = response.next().await {
+         //let out_id = row.get("out_id").unwrap();
+         let output: Vec<Node> = row.get("t_outputs").unwrap();
+         println!("{:?}", output);
+         //outputs.push((prev_tx, output));
+      }
+
+      outputs
    }
 }
 
@@ -36,6 +53,16 @@ pub struct Output {
    id: u32,
    value: f64,
    address: String,
+}
+
+impl Output {
+   pub fn from_node(node: Node) -> Self {
+      Output {
+         id: node.get::<i64>("id").unwrap() as u32,
+         value: node.get::<String>("value").unwrap().parse::<f64>().unwrap(),
+         address: node.get("address").unwrap(),
+      }
+   }
 }
 
 #[derive(Debug, Serialize, Clone)]
@@ -61,11 +88,17 @@ impl Input {
          signature: String::new(),
       }
    }
+
+   pub fn verify(&self) -> bool {
+      false
+   }
 }
 
 #[derive(Debug, Serialize, Clone)]
 pub struct Transaction {
+   #[serde(skip_serializing)]
    hash: String,
+
    uuid: String,
    date: i64,
    vin_hash: String,
@@ -78,13 +111,25 @@ pub struct Transaction {
 }
 
 impl Transaction {
-   pub fn new() -> Transaction {
+   pub fn new() -> Self {
       Transaction {
          hash: String::new(),
          uuid: Uuid::new_v4().as_bytes().to_base58(),
          date: Utc::now().timestamp(),
          vin_hash: String::new(),
          vout_hash: String::new(),
+         vout: Vec::new(),
+         _vin: Vec::new(),
+      }
+   }
+
+   pub fn from_node(node: Node) -> Self {
+      Transaction {
+         hash: String::new(),
+         uuid: node.get("uuid").unwrap(),
+         date: node.get("date").unwrap(),
+         vin_hash: node.get("vin_hash").unwrap(),
+         vout_hash: node.get("vout_hash").unwrap(),
          vout: Vec::new(),
          _vin: Vec::new(),
       }
@@ -139,15 +184,12 @@ impl Transaction {
          ));
 
          queries.push(format!(
-            "CREATE (tx)-[:OUT]->(:Output {{id: {}, value: {}, address: '{}'}})<-[:OWN]-({})",
+            "CREATE (tx)-[:OUT]->(:Output {{id: {}, value: '{}', address: '{}'}})<-[:OWN]-({})",
             vout.id, vout.value, vout.address, user
          ));
       }
 
-      let q = queries.join("\n");
-      println!("{}", q.as_str());
-
-      graph.run(query(q.as_str())).await.unwrap();
+      graph.run(query(queries.join("\n").as_str())).await.unwrap();
    }
 }
 
@@ -156,6 +198,18 @@ pub async fn create_coinbase(to_address: String, amount: String, graph: Graph) {
 
    transaction.add_output(amount.parse::<f64>().unwrap(), to_address);
    transaction.upload(graph).await;
+}
 
-   //println!("{:?}", transaction);
+pub async fn send_transaction(
+   private_key: String,
+   to_address: String,
+   amount: String,
+   graph: Graph,
+) {
+   let private_key = hex::decode(private_key).unwrap();
+   let from_address = get_address_by_private_key(&private_key);
+
+   let user = User::new(from_address);
+   let inputs = user.get_unspend_outups(graph).await;
+   println!("{:?}", inputs);
 }
