@@ -26,7 +26,7 @@ impl User {
          WHERE isEmpty((o)-[:IN]->(:Transaction))
          WITH o.id as oid, tx
          WITH oid, tx, [(tx)-[:OUT]->(o:Output) | o] as t_outputs
-         WITH oid, tx, t_outputs, [(tx)-[:IN]->(i:Input) | i] as t_inputs
+         WITH oid, tx, t_outputs, [(tx)-[:IN]->(i:Output) | i] as t_inputs
          RETURN oid, tx, t_outputs, t_inputs
          "#,
             )
