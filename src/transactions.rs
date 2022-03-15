@@ -1,7 +1,6 @@
 use base58::ToBase58;
 use chrono::Utc;
-use neo4rs::query;
-use neo4rs::{Graph, Node};
+use neo4rs::{query, Graph, Node};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 use uuid::Uuid;

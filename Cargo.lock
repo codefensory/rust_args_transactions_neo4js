@@ -138,9 +138,9 @@ dependencies = [
 
 [[package]]
 name = "crossbeam-queue"
-version = "0.3.4"
+version = "0.3.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4dd435b205a4842da59efd07628f921c096bc1cc0a156835b4fa0bcb9a19bcce"
+checksum = "1f25d8400f4a7a5778f0e4e52384a48cbd9b5c495d110786187fc750075277a2"
 dependencies = [
  "cfg-if",
  "crossbeam-utils",
@@ -148,9 +148,9 @@ dependencies = [
 
 [[package]]
 name = "crossbeam-utils"
-version = "0.8.7"
+version = "0.8.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b5e5bed1f1c269533fa816a0a5492b3545209a205ca1a54842be180eb63a16a6"
+checksum = "0bf124c720b7686e3c2663cf54062ab0f68a88af2fb6a030e87e30bf721fcb38"
 dependencies = [
  "cfg-if",
  "lazy_static",
@@ -543,8 +543,6 @@ dependencies = [
 [[package]]
 name = "neo4rs"
 version = "0.5.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "db5c8018aa04d335d64795ef24d3520214c9c4bb16cf7e93e1c279706d2f7d5d"
 dependencies = [
  "async-trait",
  "bytes",
@@ -559,8 +557,6 @@ dependencies = [
 [[package]]
 name = "neo4rs-macros"
 version = "0.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2cf52bfa6042343585f458f38f18094a53e8d8c417221867918e9f0a6885f42a"
 dependencies = [
  "quote",
  "syn",

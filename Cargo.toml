@@ -24,3 +24,6 @@ uuid = { version = "0.7", features = ["serde", "v4"] }
 chrono = "0.4.19"
 
 tokio = "1.17.0"
+
+[patch.crates-io]
+neo4rs = { path = "../crates/neo4rs/lib" }
