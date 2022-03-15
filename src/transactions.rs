@@ -183,9 +183,15 @@ impl Transaction {
             vout.address.clone()
          ));
 
+         let value = if vout.value % 1.0 == 0.0 {
+            format!("{:.1}", vout.value)
+         } else {
+            format!("{}", vout.value)
+         };
+
          queries.push(format!(
-            "CREATE (tx)-[:OUT]->(:Output {{id: {}, value: '{}', address: '{}'}})<-[:OWN]-({})",
-            vout.id, vout.value, vout.address, user
+            "CREATE (tx)-[:OUT]->(:Output {{id: {}, value: {}, address: '{}'}})<-[:OWN]-({})",
+            vout.id, value, vout.address, user
          ));
       }
 
