@@ -17,11 +17,12 @@ pub async fn send_transaction(
    amount: String,
    graph: Graph,
 ) {
+   let amount = amount.parse::<f64>().unwrap();
    let private_key = hex::decode(private_key).unwrap();
    let from_address = get_address_by_private_key(&private_key);
 
    let user = User::new(from_address);
-   let inputs = user.get_unspend_outputs(graph).await;
+   let inputs = user.get_unspend_outputs(graph, amount).await;
 
    println!("------");
    println!("{:?}", inputs);

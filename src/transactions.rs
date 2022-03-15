@@ -17,10 +17,11 @@ pub struct Transaction {
    vout_hash: String,
 
    #[serde(skip_serializing)]
-   vout: Vec<Output>,
+   pub vout: Vec<Output>,
    #[serde(skip_serializing)]
    _vin: Vec<Input>,
 }
+
 impl Transaction {
    pub fn new() -> Self {
       Transaction {
@@ -33,16 +34,24 @@ impl Transaction {
          _vin: Vec::new(),
       }
    }
+}
 
+impl Transaction {
    pub fn from_node(node: &Node, outputs: Vec<Node>, inputs: Vec<Node>) -> Self {
+      let mut vout: Vec<Output> = outputs.iter().map(Output::from_node).collect();
+      vout.sort_by(|a, b| b.id.cmp(&a.id));
+
+      let mut _vin: Vec<Input> = inputs.iter().map(Input::from_node).collect();
+      _vin.sort_by(|a, b| b.id.cmp(&a.id));
+
       Transaction {
          hash: node.get("hash").unwrap_or(String::new()),
          uuid: node.get("uuid").unwrap_or(String::new()),
          date: node.get("date").unwrap_or(0),
          vin_hash: node.get("vin_hash").unwrap_or(String::new()),
          vout_hash: node.get("vout_hash").unwrap_or(String::new()),
-         vout: outputs.iter().map(Output::from_node).collect(),
-         _vin: inputs.iter().map(Input::from_node).collect(),
+         vout,
+         _vin,
       }
    }
 
@@ -122,9 +131,9 @@ impl Transaction {
 //------
 #[derive(Debug, Serialize, Clone)]
 pub struct Output {
-   id: u32,
-   value: f64,
-   address: String,
+   pub id: u32,
+   pub value: f64,
+   pub address: String,
 }
 
 impl Output {
@@ -142,13 +151,13 @@ impl Output {
 //------
 #[derive(Debug, Serialize, Clone)]
 pub struct Input {
-   prev_tx: String,
-   id: u32,
-   value: f64,
+   pub prev_tx: String,
+   pub id: u32,
+   pub value: f64,
 
-   address: String,
-   public_key: String,
-   signature: String,
+   pub address: String,
+   pub public_key: String,
+   pub signature: String,
 }
 
 impl Input {

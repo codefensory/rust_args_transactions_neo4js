@@ -1,4 +1,4 @@
-use crate::transactions::{Input, Output, Transaction};
+use crate::transactions::{Transaction};
 use neo4rs::{query, Graph, Node};
 
 pub struct User {
@@ -10,7 +10,11 @@ impl User {
       User { address }
    }
 
-   pub async fn get_unspend_outputs(&self, graph: Graph) -> Vec<(Transaction, u32)> {
+   pub async fn get_unspend_outputs(
+      &self,
+      graph: Graph,
+      amount: f64,
+   ) -> (Vec<(Transaction, u32)>, f64) {
       let mut response = graph
          .execute(
             query(
@@ -29,6 +33,7 @@ impl User {
          .unwrap();
 
       let mut outputs: Vec<(Transaction, u32)> = Vec::new();
+      let mut balance = 0.0;
 
       while let Ok(Some(row)) = response.next().await {
          let oid = row.get::<i64>("oid").unwrap() as u32;
@@ -49,10 +54,16 @@ impl User {
          println!("------");
 
          if is_valid {
+            let value = transaction.vout[oid as usize].value;
             outputs.push((transaction, oid));
+            balance += value;
+
+            if balance >= amount {
+               break;
+            }
          }
       }
 
-      outputs
+      (outputs, balance)
    }
 }
