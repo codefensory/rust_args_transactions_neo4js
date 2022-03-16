@@ -1,4 +1,4 @@
-use crate::transactions::{Input, Transaction};
+use crate::transactions::{Compare, Input, Transaction};
 use neo4rs::{query, Graph, Node};
 
 pub struct User {
@@ -12,9 +12,9 @@ impl User {
 
    pub async fn get_unspend_outputs_as_inputs(
       &self,
-      graph: Graph,
-      amount: f64,
-   ) -> (Vec<Input>, f64) {
+      graph: &Graph,
+      amount: f32,
+   ) -> (Vec<Input>, f32) {
       let mut response = graph
          .execute(
             query(
@@ -32,7 +32,7 @@ impl User {
          .await
          .unwrap();
 
-      let mut outputs: Vec<(Input)> = Vec::new();
+      let mut outputs: Vec<Input> = Vec::new();
       let mut balance = 0.0;
 
       while let Ok(Some(row)) = response.next().await {
@@ -60,5 +60,37 @@ impl User {
       }
 
       (outputs, balance)
+   }
+
+   // In a future this will use multi address
+   pub async fn send(&self, to_address: String, amount: f32, mut inputs: Vec<Input>, graph: &Graph) {
+      if !inputs.verify() {
+         println!("Inputs no validos");
+         return;
+      }
+
+      let balance = inputs.iter().fold(0.0f32, |acc, x| acc + x.value);
+
+      // Verify Balance
+      if balance < amount {
+         println!("Insufficient balance");
+         return;
+      }
+
+      // Order by ID
+      inputs.sort_by(|a, b| b.id.cmp(&a.id));
+
+      // Create Transaction
+      let mut transaction = Transaction::new();
+      transaction.set_inputs(inputs);
+      transaction.add_output(amount, to_address);
+
+      let remaining = balance - amount;
+
+      if remaining != 0.0f32 {
+         transaction.add_output(remaining, self.address.clone());
+      }
+
+      transaction.upload(graph).await;
    }
 }

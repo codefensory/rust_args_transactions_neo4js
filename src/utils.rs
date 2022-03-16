@@ -1,8 +1,5 @@
 use k256::{
-   ecdsa::{
-      signature::Signer,
-      Signature, SigningKey,
-   },
+   ecdsa::{signature::Signer, Signature, SigningKey},
    elliptic_curve::sec1::ToEncodedPoint,
    SecretKey,
 };
@@ -33,4 +30,12 @@ pub fn sign_inputs(private_key: &[u8], inputs: Vec<Input>) -> Vec<Input> {
    }
 
    result
+}
+
+pub fn to_float_string(value: f32) -> String {
+   if value % 1.0 == 0.0 {
+      format!("{:.1}", value)
+   } else {
+      format!("{}", value)
+   }
 }

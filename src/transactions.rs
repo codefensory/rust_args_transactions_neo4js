@@ -1,17 +1,13 @@
 use base58::ToBase58;
 use chrono::Utc;
+use ripemd::Ripemd160;
 use serde::Serialize;
 use sha2::{Digest, Sha256};
-use ripemd::Ripemd160;
 use uuid::Uuid;
 
+use crate::utils::to_float_string;
+use k256::ecdsa::{signature::Verifier, Signature, VerifyingKey};
 use neo4rs::{query, Graph, Node};
-use k256:: {
-   ecdsa:: {
-      signature::Verifier,
-      Signature, VerifyingKey,
-   },
-};
 use signature::Signature as Sign;
 
 #[derive(Debug, Serialize, Clone)]
@@ -27,7 +23,7 @@ pub struct Transaction {
    #[serde(skip_serializing)]
    pub vout: Vec<Output>,
    #[serde(skip_serializing)]
-   _vin: Vec<Input>,
+   pub vin: Vec<Input>,
 }
 
 impl Transaction {
@@ -39,8 +35,12 @@ impl Transaction {
          vin_hash: String::new(),
          vout_hash: String::new(),
          vout: Vec::new(),
-         _vin: Vec::new(),
+         vin: Vec::new(),
       }
+   }
+
+   pub fn set_inputs(&mut self, inputs: Vec<Input>) {
+      self.vin = inputs;
    }
 }
 
@@ -59,7 +59,7 @@ impl Transaction {
          vin_hash: node.get("vin_hash").unwrap_or(String::new()),
          vout_hash: node.get("vout_hash").unwrap_or(String::new()),
          vout,
-         _vin,
+         vin: _vin,
       }
    }
 
@@ -75,7 +75,7 @@ impl Transaction {
       vout_hasher.update(&json);
       self.vout_hash = hex::encode(vout_hasher.finalize());
 
-      let json = serde_json::to_string(&self._vin).unwrap();
+      let json = serde_json::to_string(&self.vin).unwrap();
       let mut vin_hasher = Sha256::new();
       vin_hasher.update(&json);
       self.vin_hash = hex::encode(vin_hasher.finalize());
@@ -86,7 +86,7 @@ impl Transaction {
       self.hash = hex::encode(self_hasher.finalize());
    }
 
-   pub fn add_output(&mut self, amount: f64, to_address: String) {
+   pub fn add_output(&mut self, amount: f32, to_address: String) {
       let output = Output {
          id: self.vout.len() as u32,
          value: amount,
@@ -96,7 +96,7 @@ impl Transaction {
       self.vout.push(output);
    }
 
-   pub async fn upload(&mut self, graph: Graph) {
+   pub async fn upload(&mut self, graph: &Graph) {
       self.generate_hash();
 
       let mut queries = Vec::new();
@@ -107,25 +107,33 @@ impl Transaction {
          &*self.hash, &*self.uuid, self.date, &*self.vin_hash, &*self.vout_hash,
       ));
 
-      for (index, vout) in self.vout.clone().into_iter().enumerate() {
+      for (index, output) in self.vout.clone().into_iter().enumerate() {
          let user = "uo".to_owned() + &index.to_string();
 
          queries.push(format!(
             "MERGE ({}:User {{address: '{}'}})",
-            user,
-            &vout.address
+            user, &output.address
          ));
-
-         let value = if vout.value % 1.0 == 0.0 {
-            format!("{:.1}", vout.value)
-         } else {
-            format!("{}", vout.value)
-         };
 
          queries.push(format!(
             "CREATE (tx)-[:OUT]->(:Output {{id: {}, value: {}, address: '{}'}})<-[:OWN]-({})",
-            vout.id, value, vout.address, user
+            output.id,
+            to_float_string(output.value),
+            output.address,
+            user
          ));
+      }
+
+      queries.push(format!("WITH tx"));
+
+      for (index, input) in self.vin.clone().into_iter().enumerate() {
+         let out = "out".to_owned() + &index.to_string();
+         queries.push(format!(
+            "MATCH (:Transaction {{hash: '{}'}})-[:OUT]->({}:Output {{id: {}}})",
+            input.prev_tx, out, input.id
+         ));
+
+         queries.push(format!("CREATE ({})-[:IN]->(tx)", out))
       }
 
       graph.run(query(queries.join("\n").as_str())).await.unwrap();
@@ -140,7 +148,7 @@ impl Transaction {
 #[derive(Debug, Serialize, Clone)]
 pub struct Output {
    pub id: u32,
-   pub value: f64,
+   pub value: f32,
    pub address: String,
 }
 
@@ -148,7 +156,7 @@ impl Output {
    pub fn from_node(node: &Node) -> Self {
       Output {
          id: node.get::<i64>("id").unwrap() as u32,
-         value: node.get::<f64>("value").unwrap(),
+         value: node.get::<f64>("value").unwrap() as f32,
          address: node.get("address").unwrap(),
       }
    }
@@ -161,7 +169,7 @@ impl Output {
 pub struct Input {
    pub prev_tx: String,
    pub id: u32,
-   pub value: f64,
+   pub value: f32,
 
    pub address: String,
    pub public_key: String,
@@ -185,7 +193,7 @@ impl Input {
       Input {
          prev_tx: node.get("prev_tx").unwrap_or(String::new()),
          id: node.get::<i64>("id").unwrap_or(0) as u32,
-         value: node.get("value").unwrap_or(0.0),
+         value: node.get::<f64>("value").unwrap_or(0.0) as f32,
          address: node.get("address").unwrap_or(String::new()),
          public_key: node.get("public_key").unwrap_or(String::new()),
          signature: node.get("signature").unwrap_or(String::new()),
@@ -200,19 +208,21 @@ impl Input {
       pk_hasher.update(&public_key);
       let address = hex::encode(pk_hasher.finalize());
       if address != self.address {
-         return false
+         return false;
       }
 
       let signature = hex::decode(&self.signature).unwrap();
       let signature = Signature::from_bytes(&signature).unwrap();
       let verify_key = VerifyingKey::from_sec1_bytes(&public_key).unwrap();
-      
-      verify_key.verify(&self.prev_tx.as_bytes(), &signature).is_ok()
+
+      verify_key
+         .verify(&self.prev_tx.as_bytes(), &signature)
+         .is_ok()
    }
 }
 
 // Exercise with trait <3
-trait Compare {
+pub trait Compare {
    fn verify(&self) -> bool;
 }
 
