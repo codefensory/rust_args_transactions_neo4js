@@ -30,35 +30,7 @@ pub async fn send_transaction(
       return;
    }
 
-   // Verify sign inputs
-   let inputs = sign_and_verify_inputs(&private_key, inputs).unwrap();
+   let inputs = sign_inputs(&private_key, inputs);
 
    println!("{:?}", inputs);
-}
-
-fn sign_and_verify_inputs(private_key: &[u8], inputs: Vec<Input>) -> Result<Vec<Input>, String> {
-   let inputs = sign_inputs(private_key, inputs);
-   if !inputs.verify() {
-      Err("Some input does not belong to the user".to_string())
-   } else {
-      Ok(inputs)
-   }
-}
-
-// Exercise with trait <3
-trait Compare {
-   fn verify(&self) -> bool;
-}
-
-impl Compare for Vec<Input> {
-   fn verify(&self) -> bool {
-      let mut result = true;
-      for input in self {
-         if !input.verify() {
-            result = false;
-            break;
-         }
-      }
-      result
-   }
 }

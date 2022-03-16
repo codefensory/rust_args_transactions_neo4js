@@ -210,3 +210,21 @@ impl Input {
       verify_key.verify(&self.prev_tx.as_bytes(), &signature).is_ok()
    }
 }
+
+// Exercise with trait <3
+trait Compare {
+   fn verify(&self) -> bool;
+}
+
+impl Compare for Vec<Input> {
+   fn verify(&self) -> bool {
+      let mut result = true;
+      for input in self {
+         if !input.verify() {
+            result = false;
+            break;
+         }
+      }
+      result
+   }
+}
