@@ -23,10 +23,10 @@ pub async fn send_transaction(
 
    let user = User::new(from_address);
    let (inputs, balance) = user.get_unspend_outputs_as_inputs(&graph, amount).await;
-
+   
    // Verify balance
    if balance < amount {
-      println!("Insufficient balance");
+      println!("Insufficient balance of unspend");
       return;
    }
 

@@ -47,10 +47,10 @@ impl Transaction {
 impl Transaction {
    pub fn from_node(node: &Node, outputs: Vec<Node>, inputs: Vec<Node>) -> Self {
       let mut vout: Vec<Output> = outputs.iter().map(Output::from_node).collect();
-      vout.sort_by(|a, b| b.id.cmp(&a.id));
+      vout.sort_by(|a, b| a.id.cmp(&b.id));
 
       let mut _vin: Vec<Input> = inputs.iter().map(Input::from_node).collect();
-      _vin.sort_by(|a, b| b.id.cmp(&a.id));
+      _vin.sort_by(|a, b| a.id.cmp(&b.id));
 
       Transaction {
          hash: node.get("hash").unwrap_or(String::new()),
@@ -124,16 +124,23 @@ impl Transaction {
          ));
       }
 
-      queries.push(format!("WITH tx"));
+      if self.vin.len() > 0 {
+         queries.push(format!("WITH tx"));
+      }
 
       for (index, input) in self.vin.clone().into_iter().enumerate() {
-         let out = "out".to_owned() + &index.to_string();
+         let inp = "inp".to_owned() + &index.to_string();
          queries.push(format!(
             "MATCH (:Transaction {{hash: '{}'}})-[:OUT]->({}:Output {{id: {}}})",
-            input.prev_tx, out, input.id
+            input.prev_tx, inp, input.id
          ));
 
-         queries.push(format!("CREATE ({})-[:IN]->(tx)", out))
+         queries.push(format!(
+            "SET {inp}.prev_tx = '{prev_tx}', {inp}.public_key = '{public_key}', {inp}.signature = '{signature}'",
+            inp = inp, prev_tx = input.prev_tx, public_key = input.public_key, signature = input.signature
+         ));
+
+         queries.push(format!("CREATE ({})-[:IN]->(tx)", inp))
       }
 
       graph.run(query(queries.join("\n").as_str())).await.unwrap();

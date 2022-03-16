@@ -11,14 +11,22 @@ impl User {
    }
 
    pub async fn get_balance(&self, graph: &Graph) -> f32 {
-      let mut response = graph.execute(query(r#"
+      let mut response = graph
+         .execute(
+            query(
+               r#"
          MATCH (:User {address: $address})-[:OWN]->(o:Output)<-[:OUT]-(tx:Transaction)
          WHERE NOT exists((o)-[:IN]->(:Transaction))
          RETURN reduce(balance = 0, out in collect(o) | balance + out.value) as balance
-      "#).param("address", self.address.clone())).await.unwrap();
+      "#,
+            )
+            .param("address", self.address.clone()),
+         )
+         .await
+         .unwrap();
 
       if let Ok(Some(row)) = response.next().await {
-         row.get::<f64>("balance").unwrap() as f32
+         row.get::<f64>("balance").unwrap_or(0.0) as f32
       } else {
          0.0f32
       }
@@ -37,7 +45,7 @@ impl User {
          WHERE isEmpty((o)-[:IN]->(:Transaction))
          WITH o.id as oid, tx
          WITH oid, tx, [(tx)-[:OUT]->(o:Output) | o] as t_outputs
-         WITH oid, tx, t_outputs, [(tx)-[:IN]->(i:Output) | i] as t_inputs
+         WITH oid, tx, t_outputs, [(tx)<-[:IN]-(i:Output) | i] as t_inputs
          RETURN oid, tx, t_outputs, t_inputs
          "#,
             )
@@ -70,6 +78,8 @@ impl User {
             if balance >= amount {
                break;
             }
+         } else {
+            println!("Transaction no valid");
          }
       }
 
@@ -93,12 +103,12 @@ impl User {
 
       // Verify Balance
       if balance < amount {
-         println!("Insufficient balance");
+         println!("Insufficient balance for send");
          return;
       }
 
       // Order by ID
-      inputs.sort_by(|a, b| b.id.cmp(&a.id));
+      inputs.sort_by(|a, b| a.id.cmp(&b.id));
 
       // Create Transaction
       let mut transaction = Transaction::new();
