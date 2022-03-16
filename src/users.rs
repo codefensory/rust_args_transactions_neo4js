@@ -18,7 +18,7 @@ impl User {
          MATCH (:User {address: $address})-[:OWN]->(o:Output)<-[:OUT]-(tx:Transaction)
          WHERE NOT exists((o)-[:IN]->(:Transaction))
          RETURN reduce(balance = 0, out in collect(o) | balance + out.value) as balance
-      "#,
+      "#
             )
             .param("address", self.address.clone()),
          )
@@ -47,7 +47,7 @@ impl User {
          WITH oid, tx, [(tx)-[:OUT]->(o:Output) | o] as t_outputs
          WITH oid, tx, t_outputs, [(tx)<-[:IN]-(i:Output) | i] as t_inputs
          RETURN oid, tx, t_outputs, t_inputs
-         "#,
+         "#
             )
             .param("address", &*self.address),
          )
