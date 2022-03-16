@@ -59,7 +59,8 @@ async fn main() {
          }
 
          let address = &args[2];
-         println!("balance of {} is: {}", address, "None");
+         let balance = actions::get_balance(address.clone(), &connect_db().await).await;
+         println!("balance is: {}", balance);
       }
       _ => println!("Sin resultado"),
    };

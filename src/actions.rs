@@ -35,3 +35,8 @@ pub async fn send_transaction(
 
    user.send(to_address, amount, inputs, &graph).await;
 }
+
+pub async fn get_balance(address: String, graph: &Graph) -> f32 {
+   let user = User::new(address);
+   user.get_balance(graph).await
+}

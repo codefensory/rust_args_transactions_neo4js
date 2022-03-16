@@ -10,6 +10,20 @@ impl User {
       User { address }
    }
 
+   pub async fn get_balance(&self, graph: &Graph) -> f32 {
+      let mut response = graph.execute(query(r#"
+         MATCH (:User {address: $address})-[:OWN]->(o:Output)<-[:OUT]-(tx:Transaction)
+         WHERE NOT exists((o)-[:IN]->(:Transaction))
+         RETURN reduce(balance = 0, out in collect(o) | balance + out.value) as balance
+      "#).param("address", self.address.clone())).await.unwrap();
+
+      if let Ok(Some(row)) = response.next().await {
+         row.get::<f64>("balance").unwrap() as f32
+      } else {
+         0.0f32
+      }
+   }
+
    pub async fn get_unspend_outputs_as_inputs(
       &self,
       graph: &Graph,
@@ -63,7 +77,13 @@ impl User {
    }
 
    // In a future this will use multi address
-   pub async fn send(&self, to_address: String, amount: f32, mut inputs: Vec<Input>, graph: &Graph) {
+   pub async fn send(
+      &self,
+      to_address: String,
+      amount: f32,
+      mut inputs: Vec<Input>,
+      graph: &Graph,
+   ) {
       if !inputs.verify() {
          println!("Inputs no validos");
          return;
