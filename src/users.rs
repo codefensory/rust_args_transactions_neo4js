@@ -1,4 +1,4 @@
-use crate::transactions::{Transaction};
+use crate::transactions::{Input, Transaction};
 use neo4rs::{query, Graph, Node};
 
 pub struct User {
@@ -10,11 +10,11 @@ impl User {
       User { address }
    }
 
-   pub async fn get_unspend_outputs(
+   pub async fn get_unspend_outputs_as_inputs(
       &self,
       graph: Graph,
       amount: f64,
-   ) -> (Vec<(Transaction, u32)>, f64) {
+   ) -> (Vec<Input>, f64) {
       let mut response = graph
          .execute(
             query(
@@ -32,7 +32,7 @@ impl User {
          .await
          .unwrap();
 
-      let mut outputs: Vec<(Transaction, u32)> = Vec::new();
+      let mut outputs: Vec<(Input)> = Vec::new();
       let mut balance = 0.0;
 
       while let Ok(Some(row)) = response.next().await {
@@ -43,20 +43,15 @@ impl User {
          let inputs_nodes: Vec<Node> = row.get("t_inputs").unwrap();
 
          let mut transaction = Transaction::from_node(&tx_node, outputs_nodes, inputs_nodes);
-         let prev_hash = transaction.hash.clone();
          let is_valid = transaction.validate();
 
-         println!("My id: {}", oid);
-         println!("previus hash: {}", prev_hash);
-         println!("real hash: {}", transaction.hash.clone());
-         println!("Tx is valid: {}", is_valid);
-
-         println!("------");
-
          if is_valid {
-            let value = transaction.vout[oid as usize].value;
-            outputs.push((transaction, oid));
-            balance += value;
+            let output = transaction.vout[oid as usize].clone();
+            let input = Input::new(transaction.hash.clone(), output);
+
+            outputs.push(input);
+
+            balance += transaction.vout[oid as usize].value;
 
             if balance >= amount {
                break;

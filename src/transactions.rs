@@ -2,9 +2,17 @@ use base58::ToBase58;
 use chrono::Utc;
 use serde::Serialize;
 use sha2::{Digest, Sha256};
+use ripemd::Ripemd160;
 use uuid::Uuid;
 
 use neo4rs::{query, Graph, Node};
+use k256:: {
+   ecdsa:: {
+      signature::Verifier,
+      Signature, VerifyingKey,
+   },
+};
+use signature::Signature as Sign;
 
 #[derive(Debug, Serialize, Clone)]
 pub struct Transaction {
@@ -105,7 +113,7 @@ impl Transaction {
          queries.push(format!(
             "MERGE ({}:User {{address: '{}'}})",
             user,
-            vout.address.clone()
+            &vout.address
          ));
 
          let value = if vout.value % 1.0 == 0.0 {
@@ -185,6 +193,20 @@ impl Input {
    }
 
    pub fn verify(&self) -> bool {
-      false
+      let public_key = hex::decode(&self.public_key).unwrap();
+
+      // Verifi address from public_key
+      let mut pk_hasher = Ripemd160::new();
+      pk_hasher.update(&public_key);
+      let address = hex::encode(pk_hasher.finalize());
+      if address != self.address {
+         return false
+      }
+
+      let signature = hex::decode(&self.signature).unwrap();
+      let signature = Signature::from_bytes(&signature).unwrap();
+      let verify_key = VerifyingKey::from_sec1_bytes(&public_key).unwrap();
+      
+      verify_key.verify(&self.prev_tx.as_bytes(), &signature).is_ok()
    }
 }

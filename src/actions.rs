@@ -1,8 +1,8 @@
 use neo4rs::Graph;
 
-use crate::utils::get_address_by_private_key;
 use crate::transactions::Transaction;
 use crate::users::User;
+use crate::utils::{get_address_by_private_key, sign_inputs};
 
 pub async fn create_coinbase(to_address: String, amount: String, graph: Graph) {
    let mut transaction = Transaction::new();
@@ -22,8 +22,19 @@ pub async fn send_transaction(
    let from_address = get_address_by_private_key(&private_key);
 
    let user = User::new(from_address);
-   let inputs = user.get_unspend_outputs(graph, amount).await;
 
-   println!("------");
+   let (inputs, balance) = user.get_unspend_outputs_as_inputs(graph, amount).await;
+
+   if balance < amount {
+      println!("insufficient balance");
+      return;
+   }
+
+   let inputs = sign_inputs(&private_key, inputs);
+
+   for input in &inputs {
+      println!("tx << {} >> is {}", input.prev_tx, input.verify());
+   }
+
    println!("{:?}", inputs);
 }
