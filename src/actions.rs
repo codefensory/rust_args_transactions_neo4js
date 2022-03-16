@@ -25,20 +25,15 @@ pub async fn send_transaction(
    let (inputs, balance) = user.get_unspend_outputs_as_inputs(graph, amount).await;
 
    // Verify balance
-   verify_balance(balance, amount).unwrap();
+   if balance < amount {
+      println!("Insufficient balance");
+      return;
+   }
 
    // Verify sign inputs
    let inputs = sign_and_verify_inputs(&private_key, inputs).unwrap();
 
    println!("{:?}", inputs);
-}
-
-fn verify_balance(balance: f64, amount: f64) -> Result<(), String> {
-   if balance < amount {
-      Err("Insufficient balance".to_string())
-   } else {
-      Ok(())
-   }
 }
 
 fn sign_and_verify_inputs(private_key: &[u8], inputs: Vec<Input>) -> Result<Vec<Input>, String> {
@@ -51,7 +46,6 @@ fn sign_and_verify_inputs(private_key: &[u8], inputs: Vec<Input>) -> Result<Vec<
 }
 
 // Exercise with trait <3
-
 trait Compare {
    fn verify(&self) -> bool;
 }
