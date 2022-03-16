@@ -20,8 +20,8 @@ Debe iniciar una base de datos local con Neo4j Desktop y configurar sus credenci
 
 Luego de clonar este repositorio puede compilarlo:
 
-```
-cargo build
+```bash
+$ cargo build
 ```
 
 
